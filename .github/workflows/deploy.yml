@@ -1,0 +1,62 @@
+# Workflow para construir e publicar o site no GitHub Pages
+name: Deploy Vue App to Pages
+
+on:
+  # Roda quando um push é feito na branch `main`
+  push:
+    branches: [main] # Mude para a sua branch principal se for diferente
+
+  # Permite que você rode este workflow manualmente pela aba Actions no GitHub
+  workflow_dispatch:
+
+# Define as permissões para o GITHUB_TOKEN para permitir o deploy
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Permite apenas um deploy concorrente, cancelando os mais antigos
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # Job de construção
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18 # Use uma versão LTS
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build # O comando `pnpm build` gera a pasta `dist`
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload da pasta `dist`
+          path: './dist'
+
+  # Job de deploy
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
