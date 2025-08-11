@@ -21,15 +21,28 @@ const itemToDelete = ref<HistoryEntry | null>(null);
 const toast = useToast();
 const { copy } = useClipboard();
 
-// Carrega o histórico do localStorage ao montar o componente
 onMounted(() => {
-  const storedHistory = localStorage.getItem(EMAIL_HISTORY_KEY);
-  history.value = storedHistory ? JSON.parse(storedHistory) : [];
-  // Se o histórico inicial (prop) for mais recente, use-o
-  if (props.initialHistory.length > 0 && props.initialHistory.length !== history.value.length) {
-      history.value = props.initialHistory;
-  }
-});
+   const stored = safeLoad();
+   history.value = stored;
+   if (props.initialHistory.length > 0 && props.initialHistory.length !== stored.length) {
+     history.value = props.initialHistory;
+   }
+ });
+
+ function safeLoad(): HistoryEntry[] {
+   try {
+     const raw = localStorage.getItem(EMAIL_HISTORY_KEY);
+     if (!raw) return [];
+     const parsed = JSON.parse(raw);
+     if (Array.isArray(parsed)) return parsed;
+     if (parsed && Array.isArray(parsed.items)) return parsed.items;
+     localStorage.setItem(EMAIL_HISTORY_KEY, '[]');
+     return [];
+   } catch {
+     localStorage.setItem(EMAIL_HISTORY_KEY, '[]');
+     return [];
+   }
+ }
 
 watch(() => props.initialHistory, (newHistory) => {
   history.value = newHistory;

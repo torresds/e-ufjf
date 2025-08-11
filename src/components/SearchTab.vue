@@ -9,6 +9,25 @@ import BaseModal from './BaseModal.vue';
 
 const emit = defineEmits(['emails-extracted']);
 
+function loadHistory(): HistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(EMAIL_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+
+    if (Array.isArray(parsed)) return parsed;
+
+    if (parsed && Array.isArray(parsed.items)) return parsed.items;
+
+    localStorage.setItem(EMAIL_HISTORY_KEY, '[]');
+    return [];
+  } catch {
+    localStorage.setItem(EMAIL_HISTORY_KEY, '[]');
+    return [];
+  }
+}
+
+
 const EMAIL_HISTORY_KEY = 'emailUFJF_emailHistory';
 const DEPARTMENTS: Department[] = [
     { name: "Ciência da Computação", url: "https://www2.ufjf.br/deptocomputacao/institucional/corpo-docente/docentes/" },
@@ -31,14 +50,13 @@ const handleFetch = async (force = false) => {
     return;
   }
 
-  const existingHistory: HistoryEntry[] = JSON.parse(localStorage.getItem(EMAIL_HISTORY_KEY) || '[]');
-  const departmentAlreadyFetched = existingHistory.some(entry => entry.departmentName === getDepartmentName(selectedDepartmentUrl.value));
-
+  const existingHistory = loadHistory();
+  const departmentAlreadyFetched = existingHistory.some((entry) => entry.departmentName === getDepartmentName(selectedDepartmentUrl.value));
   if (departmentAlreadyFetched && !force) {
     showModal.value = true;
     return;
   }
-  
+  ''
   showModal.value = false;
   isLoading.value = true;
   results.value = [];
@@ -142,7 +160,6 @@ const copyAllEmails = () => {
       </table>
     </div>
 
-    <!-- Modal de Confirmação -->
     <BaseModal 
       :show="showModal"
       title="Departamento já verificado"

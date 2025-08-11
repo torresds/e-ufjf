@@ -1,59 +1,120 @@
 import { type Professor, type Department } from '../types';
 
-// URL do proxy para contornar problemas de CORS
-const PROXY_URL = 'https://api.allorigins.win/get?url=';
+const buildProxyChain = (target: string) => [
+  `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`,
+  `https://cors.isomorphic-git.org/${target}`,
+  `https://r.jina.ai/${target}`,
+];
 
-/**
- * Busca e extrai os dados dos docentes de uma URL de departamento.
- * @param department O objeto do departamento a ser buscado.
- * @returns Uma promessa que resolve para um array de Professores.
- */
-export async function fetchProfessors(department: Department): Promise<Professor[]> {
-  const targetUrl = `${PROXY_URL}${encodeURIComponent(department.url)}`;
-  const professors: Professor[] = [];
-
-  try {
-    const response = await fetch(targetUrl);
-    if (!response.ok) {
-      throw new Error(`O proxy não conseguiu acessar a URL. Status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const htmlText = data.contents;
-    if (!htmlText) {
-      throw new Error('O proxy retornou uma resposta vazia.');
-    }
-
-    // Usa DOMParser para analisar o HTML retornado
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, 'text/html');
-
-    // Seleciona todas as linhas com a classe 'docentes'
-    const professorRows = doc.querySelectorAll('tr.docentes');
-    if (professorRows.length === 0) {
-      throw new Error('Nenhum docente encontrado. Verifique a URL ou a estrutura da página.');
-    }
-
-    professorRows.forEach(row => {
-      const nameCell = row.querySelector('td:first-child');
-      // O e-mail está codificado em base64 no atributo 'data-email' de um botão
-      const emailButton = row.querySelector('button[data-email]');
-
-      if (nameCell && emailButton) {
-        const name = nameCell.textContent?.trim() ?? 'Nome não encontrado';
-        // Decodifica o e-mail de base64
-        const email = atob(emailButton.getAttribute('data-email') ?? '');
-        
-        if (email) {
-            professors.push({ name, email });
-        }
+async function fetchHtmlWithFallback(urls: string[]): Promise<string> {
+  let lastErr: any = null;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+        referrerPolicy: 'no-referrer',
+      });
+      if (!res.ok) {
+        lastErr = new Error(`HTTP ${res.status}`);
+        continue;
       }
-    });
-
-    return professors;
-
-  } catch (error) {
-    console.error('Falha na extração:', error);
-    throw error;
+      const text = await res.text();
+      if (text && text.length) return text;
+      lastErr = new Error('Resposta vazia');
+    } catch (e) {
+      lastErr = e;
+    }
   }
+  throw lastErr ?? new Error('Falha ao buscar HTML');
+}
+
+function extractFromDom(html: string): Professor[] {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const out: Professor[] = [];
+
+  //Preferido: qualquer nó com data-email (botões, links, etc.)
+  const emailNodes = doc.querySelectorAll<HTMLElement>('[data-email]');
+  emailNodes.forEach((el) => {
+    const encoded = el.getAttribute('data-email') || '';
+    const email = encoded ? atob(encoded) : '';
+    if (!email) return;
+
+    // Tenta subir até a linha (tr) e pegar o primeiro td como nome
+    let name = 'Nome não encontrado';
+    const tr = el.closest('tr');
+    if (tr) {
+      const firstTd = tr.querySelector('td');
+      const candidate = firstTd?.textContent?.trim();
+      if (candidate) name = candidate.replace(/\s+/g, ' ');
+    } else {
+      const siblingText = el.parentElement?.textContent?.trim();
+      if (siblingText) name = siblingText.replace(/\s+/g, ' ');
+    }
+
+    out.push({ name, email });
+  });
+
+  //Se a página realmente usa <tr class="docentes">, mantém compat.
+  if (out.length === 0) {
+    const rows = doc.querySelectorAll('tr.docentes');
+    rows.forEach((row) => {
+      const nameCell = row.querySelector('td:first-child');
+      const emailBtn = row.querySelector<HTMLElement>('[data-email]');
+      if (!emailBtn) return;
+      const encoded = emailBtn.getAttribute('data-email') || '';
+      const email = encoded ? atob(encoded) : '';
+      if (!email) return;
+      const name = (nameCell?.textContent || 'Nome não encontrado').trim().replace(/\s+/g, ' ');
+      out.push({ name, email });
+    });
+  }
+
+  return out;
+}
+
+function extractByRegex(html: string): Professor[] {
+  const out: Professor[] = [];
+  // Captura data-email="BASE64"
+  const re = /data-email=["']([^"']+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const encoded = m[1];
+    let email = '';
+    try { email = atob(encoded); } catch {}
+    if (!email) continue;
+
+    // pega ~80 chars antes do match e limpa tags
+    const contextStart = Math.max(0, m.index - 200);
+    const context = html.slice(contextStart, m.index);
+    const name = context
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(/[:|·•\-–—]/).slice(-1)[0] || 'Nome não encontrado';
+
+    out.push({ name, email });
+  }
+  return out;
+}
+
+export async function fetchProfessors(department: Department): Promise<Professor[]> {
+  const proxies = buildProxyChain(department.url);
+  const html = await fetchHtmlWithFallback(proxies);
+
+  // Tenta DOM primeiro (para proxies que preservam HTML)
+  let professors = extractFromDom(html);
+
+  // Se não achou nada e caiu no r.jina.ai (HTML “achado”), tenta regex
+  if (professors.length === 0 && html.startsWith('https://') === false) {
+    const viaRegex = extractByRegex(html);
+    if (viaRegex.length > 0) professors = viaRegex;
+  }
+
+  if (professors.length === 0) {
+    throw new Error('Nenhum docente encontrado. Verifique a URL ou a estrutura da página.');
+  }
+
+  return professors;
 }
