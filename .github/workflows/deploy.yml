@@ -1,44 +1,44 @@
-# Workflow para construir e publicar o site no GitHub Pages
 name: Deploy Vue App to Pages
 
 on:
-  # Roda quando um push é feito na branch `main`
   push:
-    branches: [main] # Mude para a sua branch principal se for diferente
-
-  # Permite que você rode este workflow manualmente pela aba Actions no GitHub
+    branches: [main]
   workflow_dispatch:
 
-# Define as permissões para o GITHUB_TOKEN para permitir o deploy
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Permite apenas um deploy concorrente, cancelando os mais antigos
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  # Job de construção
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Instala pnpm (necessário antes do setup-node cachear)
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18 # Use uma versão LTS
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm build # O comando `pnpm build` gera a pasta `dist`
+        run: pnpm build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -46,10 +46,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload da pasta `dist`
           path: './dist'
 
-  # Job de deploy
   deploy:
     environment:
       name: github-pages
