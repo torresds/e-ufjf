@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const urlInput = document.getElementById('urlInput');
+    const departmentSelect = document.getElementById('departmentSelect');
     const fetchButton = document.getElementById('fetchButton');
     const clearHistoryButton = document.getElementById('clearHistoryButton');
     const historySearchInput = document.getElementById('historySearchInput');
@@ -11,29 +11,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultsDiv = document.getElementById('results');
     const resultsTableBody = document.querySelector('#resultsTable tbody');
 
-    const visitedUrlsContainer = document.getElementById('visited-urls-container');
-    const visitedUrlsList = document.getElementById('visitedUrlsList');
-
     const historyTableBody = document.querySelector('#historyTable tbody');
     
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
 
+    const DEPARTMENTS = [
+        { name: "Ciência da Computação", url: "https://www2.ufjf.br/deptocomputacao/institucional/corpo-docente/docentes/" },
+        { name: "Estatística", url: "https://www2.ufjf.br/estatistica/cursos/docentes/" },
+        { name: "Física", url: "https://www2.ufjf.br/fisica/institucional/docentes/" },
+        { name: "Matemática", url: "https://www2.ufjf.br/mat/institucional/corpo-docente/docentes/" },
+        { name: "Química", url: "https://www2.ufjf.br/quimica/institucional/docentes/" }
+    ];
+
+
     const EMAIL_HISTORY_KEY = 'emailUFJF_emailHistory';
-    const VISITED_URLS_KEY = 'emailUFJF_visitedUrls';
+    const DEPARTMENTS_FETCHED_KEY = 'emailUFJF_departmentsFetched';
 
-    const getStoredData = (key) => JSON.parse(localStorage.getItem(key)) || (key === VISITED_URLS_KEY ? [] : {});
+    const getStoredData = (key, isArray = false) => JSON.parse(localStorage.getItem(key)) || (isArray ? [] : {});
     const setStoredData = (key, data) => localStorage.setItem(key, JSON.stringify(data));
-
-    const getDepartmentNameFromUrl = (url) => {
-        try {
-            const pathSegments = new URL(url).pathname.split('/').filter(Boolean);
-            return pathSegments[0] || new URL(url).hostname;
-        } catch (e) {
-            return url;
-        }
-    };
-
+    
     const showFeedback = (message, type = 'error') => {
         feedbackDiv.textContent = message;
         feedbackDiv.className = type;
@@ -60,6 +57,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
     
+
+    const populateDepartmentSelect = () => {
+        DEPARTMENTS.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept.url;
+            option.textContent = dept.name;
+            departmentSelect.appendChild(option);
+        });
+    };
+
     const renderEmailHistory = () => {
         const history = getStoredData(EMAIL_HISTORY_KEY);
         historyTableBody.innerHTML = '';
@@ -75,12 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
         sortedEmails.forEach(([email, data]) => {
             const tr = document.createElement('tr');
             const formattedDate = new Date(data.lastAccessed).toLocaleDateString('pt-BR');
-            const departmentName = getDepartmentNameFromUrl(data.urlSource);
-
             tr.innerHTML = `
                 <td>${data.name}</td>
                 <td class="email-cell" title="Clique para copiar">${email}</td>
-                <td>${departmentName}</td>
+                <td>${data.departmentName}</td>
                 <td>${formattedDate}</td>
                 <td class="actions-cell">
                     <a href="mailto:${email}" class="action-button" title="Enviar e-mail para ${email}">
@@ -91,38 +96,20 @@ document.addEventListener('DOMContentLoaded', () => {
             historyTableBody.appendChild(tr);
         });
     };
-
-    const renderVisitedUrls = () => {
-        const urls = getStoredData(VISITED_URLS_KEY);
-        visitedUrlsList.innerHTML = '';
-        if (urls.length === 0) {
-            visitedUrlsContainer.classList.add('hidden');
-            return;
-        }
-        visitedUrlsContainer.classList.remove('hidden');
-        urls.slice(-5).reverse().forEach(url => {
-            const departmentName = getDepartmentNameFromUrl(url);
-            const a = document.createElement('a');
-            a.href = '#';
-            a.textContent = departmentName;
-            a.title = `Buscar novamente em: ${url}`;
-            a.dataset.url = url;
-            visitedUrlsList.appendChild(a);
-        });
-    };
     
-    const handleFetch = async (isTriggeredByUser = true) => {
-        let targetUrl = urlInput.value.trim();
-        if (!targetUrl) {
-            showFeedback("Por favor, insira uma URL válida.");
+
+    const handleFetch = async () => {
+        const targetUrl = departmentSelect.value;
+        const selectedDepartment = DEPARTMENTS.find(dept => dept.url === targetUrl);
+        
+        if (!selectedDepartment) {
+            showFeedback("Departamento inválido selecionado.");
             return;
         }
-        if (!targetUrl.endsWith('/')) targetUrl += '/';
-        urlInput.value = targetUrl;
-        
-        const visitedUrls = getStoredData(VISITED_URLS_KEY);
-        if (isTriggeredByUser && visitedUrls.includes(targetUrl)) {
-            const userConfirmation = confirm("Este departamento já consta no seu histórico. Deseja fazer uma nova busca para atualizar os dados?");
+
+        const fetchedDepts = getStoredData(DEPARTMENTS_FETCHED_KEY, true);
+        if (fetchedDepts.includes(targetUrl)) {
+            const userConfirmation = confirm(`O departamento "${selectedDepartment.name}" já consta no seu histórico. Deseja fazer uma nova busca para atualizar os dados?`);
             if (!userConfirmation) return;
         }
 
@@ -144,11 +131,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const doc = parser.parseFromString(htmlText, 'text/html');
 
             const professorRows = doc.querySelectorAll('tr.docentes');
-            if (professorRows.length === 0) throw new Error("Nenhum docente encontrado. Verifique a URL ou a estrutura da página.");
+if (professorRows.length === 0) throw new Error("Nenhum docente encontrado. Verifique a URL ou a estrutura da página.");
 
             resultsTableBody.innerHTML = '';
             const emailHistory = getStoredData(EMAIL_HISTORY_KEY);
-            let currentVisitedUrls = getStoredData(VISITED_URLS_KEY);
+            let currentFetchedDepts = getStoredData(DEPARTMENTS_FETCHED_KEY, true);
             const timestamp = new Date().toISOString();
             let newEmailsFound = 0;
 
@@ -160,18 +147,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const name = nameCell.textContent.trim();
                     const email = atob(emailButton.getAttribute('data-email'));
                     resultsTableBody.innerHTML += `<tr><td>${name}</td><td class="email-cell" title="Clique para copiar">${email}</td></tr>`;
-                    emailHistory[email] = { name, urlSource: targetUrl, lastAccessed: timestamp };
+                    emailHistory[email] = { name, departmentName: selectedDepartment.name, lastAccessed: timestamp };
                 }
             });
 
             if (newEmailsFound > 0) {
                 showFeedback(`${newEmailsFound} contatos foram extraídos e salvos no histórico.`, 'success');
-                currentVisitedUrls = currentVisitedUrls.filter(url => url !== targetUrl);
-                currentVisitedUrls.push(targetUrl);
+                if (!currentFetchedDepts.includes(targetUrl)) {
+                    currentFetchedDepts.push(targetUrl);
+                }
                 setStoredData(EMAIL_HISTORY_KEY, emailHistory);
-                setStoredData(VISITED_URLS_KEY, currentVisitedUrls);
+                setStoredData(DEPARTMENTS_FETCHED_KEY, currentFetchedDepts);
                 renderEmailHistory();
-                renderVisitedUrls();
                 resultsDiv.classList.remove('hidden');
             } else {
                 throw new Error("Nenhum e-mail foi extraído.");
@@ -183,7 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    fetchButton.addEventListener('click', () => handleFetch(true));
+
+    fetchButton.addEventListener('click', handleFetch);
 
     tabLinks.forEach(tab => {
         tab.addEventListener('click', () => {
@@ -213,28 +201,18 @@ document.addEventListener('DOMContentLoaded', () => {
     clearHistoryButton.addEventListener('click', () => {
         if (confirm('Tem certeza de que deseja apagar permanentemente todo o histórico?')) {
             localStorage.removeItem(EMAIL_HISTORY_KEY);
-            localStorage.removeItem(VISITED_URLS_KEY);
+            localStorage.removeItem(DEPARTMENTS_FETCHED_KEY);
             renderEmailHistory();
-            renderVisitedUrls();
             resultsDiv.classList.add('hidden');
             showFeedback('Histórico limpo com sucesso.', 'success');
         }
     });
 
-    visitedUrlsList.addEventListener('click', (e) => {
-        e.preventDefault();
-        if (e.target.tagName === 'A') {
-            urlInput.value = e.target.dataset.url;
-            handleFetch(false);
-        }
-    });
 
     const initialize = () => {
+        populateDepartmentSelect();
         renderEmailHistory();
-        renderVisitedUrls();
     };
-
-
 
     initialize();
 });
