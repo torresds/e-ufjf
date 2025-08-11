@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emails da UFJF</title>
+    <link rel="stylesheet" href="style/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="https://www2.ufjf.br/fisica/wp-content/themes/wpufjf_academico/assets/img/ufjf/ufjf_barra.svg" alt="Logo UFJF" class="logo">
+            <h1>Emails da UFJF</h1>
+            <p>Uma ferramenta para extrair e gerenciar contatos de docentes.</p>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-link active" data-tab="search-tab">
+                <span class="material-icons">search</span> Nova busca
+            </button>
+            <button class="tab-link" data-tab="history-tab">
+                <span class="material-icons">history</span> Histórico
+            </button>
+        </nav>
+
+        <main>
+            <div id="search-tab" class="tab-content active">
+                <div class="input-area card">
+                    <input type="url" id="urlInput" placeholder="Cole a URL do departamento aqui...">
+                    <button id="fetchButton">
+                        <span class="material-icons">travel_explore</span> Extrair
+                    </button>
+                </div>
+                
+                <div id="visited-urls-container" class="hidden">
+                    <h3>Consultas recentes</h3>
+                    <div id="visitedUrlsList"></div>
+                </div>
+
+                <div id="loading" class="hidden">
+                    <div class="spinner"></div>
+                    <p>Buscando e processando os dados...</p>
+                </div>
+                <div id="feedback" class="hidden"></div>
+                
+                <div id="results" class="hidden card">
+                    <h2>Resultados</h2>
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Docente</th>
+                                <th>E-mail</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="history-tab" class="tab-content">
+                <div class="card">
+                    <div class="history-controls">
+                        <div class="search-history-wrapper">
+                             <span class="material-icons">filter_list</span>
+                            <input type="text" id="historySearchInput" placeholder="Filtre por nome, e-mail ou departamento...">
+                        </div>
+                        <button id="clearHistoryButton" class="clear-button" title="Limpar todo o histórico">
+                            <span class="material-icons">delete_sweep</span> Limpar tudo
+                        </button>
+                    </div>
+
+                    <div id="email-history-container">
+                        <table id="historyTable">
+                            <thead>
+                                <tr>
+                                    <th>Docente</th>
+                                    <th>E-mail</th>
+                                    <th>Departamento</th>
+                                    <th>Verificado em</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                </tbody>
+                        </table>
+                        <p id="no-history-message" class="hidden">Seu histórico está vazio. Faça uma nova busca para começar.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p class="attribution">Criado por <a href="https://github.com/torresds" target="_blank" rel="noopener noreferrer">Miguel</a></p>
+        </footer>
+    </div>
+    <script src="script/script.js"></script>
+</body>
+</html>
